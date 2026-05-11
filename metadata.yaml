@@ -1,0 +1,9 @@
+name: astrbot_plugin_qqauthcode
+version: 1.0.0
+display_name: QQ Auth Code
+desc: 识别好友验证信息获取QQ号，返回SHA256哈希验证码辅助注册
+author: fyx
+support_platforms:
+  - aiocqhttp
+astrbot_version: ">=4.9.2"
+repo: https://github.com/fyx/astrbot_plugin_qqauthcode

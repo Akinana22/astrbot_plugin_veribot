@@ -1,0 +1,49 @@
+{
+  "db_host": {
+    "description": "PostgreSQL 主机地址",
+    "type": "string",
+    "default": "localhost"
+  },
+  "db_port": {
+    "description": "PostgreSQL 端口",
+    "type": "int",
+    "default": 5432
+  },
+  "db_name": {
+    "description": "数据库名称",
+    "type": "string",
+    "default": "qqauthcode"
+  },
+  "db_user": {
+    "description": "数据库用户名",
+    "type": "string",
+    "default": "postgres"
+  },
+  "db_password": {
+    "description": "数据库密码",
+    "type": "string",
+    "default": ""
+  },
+  "auxiliary_password": {
+    "description": "辅助密码（手动模式）",
+    "type": "text",
+    "hint": "关闭自动刷新时使用，每行一个密码，随机选取其中一个搭配QQ号生成注册码"
+  },
+  "auto_refresh": {
+    "description": "启用辅助密码自动刷新",
+    "type": "bool",
+    "default": false
+  },
+  "refresh_interval": {
+    "description": "密码刷新间隔（分钟）",
+    "type": "int",
+    "default": 5,
+    "hint": "取值范围 5-30 分钟"
+  },
+  "password_count": {
+    "description": "每轮生成的密码数量",
+    "type": "int",
+    "default": 6,
+    "hint": "取值范围 1-10"
+  }
+}
