@@ -1,13 +1,19 @@
 {
+  "db_type": {
+    "description": "数据库类型",
+    "type": "string",
+    "default": "postgresql",
+    "options": ["postgresql", "mysql", "mariadb", "sqlite"]
+  },
   "db_host": {
-    "description": "PostgreSQL 主机地址",
+    "description": "数据库主机地址",
     "type": "string",
     "default": "localhost"
   },
   "db_port": {
-    "description": "PostgreSQL 端口",
+    "description": "数据库端口",
     "type": "int",
-    "default": 5432
+    "default": 0
   },
   "db_name": {
     "description": "数据库名称",
@@ -23,6 +29,66 @@
     "description": "数据库密码",
     "type": "string",
     "default": ""
+  },
+  "platform_table": {
+    "description": "平台字段所在表",
+    "type": "string",
+    "default": "platform_bindings"
+  },
+  "platform_column": {
+    "description": "平台字段列名",
+    "type": "string",
+    "default": "platform"
+  },
+  "qq_uid_table": {
+    "description": "QQ UID 所在表",
+    "type": "string",
+    "default": "platform_bindings"
+  },
+  "qq_uid_column": {
+    "description": "QQ UID 列名",
+    "type": "string",
+    "default": "platform_user_id"
+  },
+  "qq_code_table": {
+    "description": "QQ 注册邀请码所在表",
+    "type": "string",
+    "default": "platform_bindings"
+  },
+  "qq_code_column": {
+    "description": "QQ 注册邀请码列名",
+    "type": "string",
+    "default": "register_code_hash"
+  },
+  "discord_uid_table": {
+    "description": "Discord UID 所在表",
+    "type": "string",
+    "default": "platform_bindings"
+  },
+  "discord_uid_column": {
+    "description": "Discord UID 列名",
+    "type": "string",
+    "default": "platform_user_id"
+  },
+  "discord_code_table": {
+    "description": "Discord 注册邀请码所在表",
+    "type": "string",
+    "default": "platform_bindings"
+  },
+  "discord_code_column": {
+    "description": "Discord 注册邀请码列名",
+    "type": "string",
+    "default": "register_code_hash"
+  },
+  "is_used_table": {
+    "description": "状态字段所在表",
+    "type": "string",
+    "default": "platform_bindings"
+  },
+  "is_used_column": {
+    "description": "状态字段列名",
+    "type": "string",
+    "default": "is_used"
   },
   "auxiliary_password": {
     "description": "辅助密码（手动模式）",

@@ -5,6 +5,9 @@
     "short_desc": "Invite Code"
   },
   "config": {
+    "db_type": {
+      "description": "Database Type"
+    },
     "db_host": {
       "description": "Database Host"
     },
@@ -19,6 +22,42 @@
     },
     "db_password": {
       "description": "Database Password"
+    },
+    "platform_table": {
+      "description": "Platform Field Table"
+    },
+    "platform_column": {
+      "description": "Platform Field Column"
+    },
+    "qq_uid_table": {
+      "description": "QQ UID Table"
+    },
+    "qq_uid_column": {
+      "description": "QQ UID Column"
+    },
+    "qq_code_table": {
+      "description": "QQ Invite Code Table"
+    },
+    "qq_code_column": {
+      "description": "QQ Invite Code Column"
+    },
+    "discord_uid_table": {
+      "description": "Discord UID Table"
+    },
+    "discord_uid_column": {
+      "description": "Discord UID Column"
+    },
+    "discord_code_table": {
+      "description": "Discord Invite Code Table"
+    },
+    "discord_code_column": {
+      "description": "Discord Invite Code Column"
+    },
+    "is_used_table": {
+      "description": "Status Field Table"
+    },
+    "is_used_column": {
+      "description": "Status Field Column"
     },
     "auxiliary_password": {
       "description": "Auxiliary Password (Manual Mode)",

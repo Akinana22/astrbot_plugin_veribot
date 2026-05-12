@@ -3,6 +3,7 @@ import asyncio
 import secrets
 import random
 import traceback
+from sqlalchemy import text
 
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
@@ -15,7 +16,8 @@ class VeriBot(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
-        self.db_pool = None
+        self.db_engine = None
+        self._db_type = config.get("db_type", "postgresql")
         self._passwords = []
         self._discord_signin_setup = False
         asyncio.create_task(self._init_db())
@@ -24,16 +26,31 @@ class VeriBot(Star):
 
     async def _init_db(self):
         try:
-            self.db_pool = await db.init_pool(
-                host=self.config.get("db_host", "localhost"),
-                port=self.config.get("db_port", 5432),
-                database=self.config.get("db_name", "qqauthcode"),
-                user=self.config.get("db_user", "postgres"),
-                password=self.config.get("db_password", ""),
+            self.db_engine = await db.init_engine(
+                self._db_type,
+                self.config.get("db_host", "localhost"),
+                self.config.get("db_port", 0),
+                self.config.get("db_name", ""),
+                self.config.get("db_user", ""),
+                self.config.get("db_password", ""),
             )
-            logger.info("VeriBot PostgreSQL 连接池初始化成功")
+            unique_tables = {
+                self.config.get("platform_table", "platform_bindings"),
+                self.config.get("qq_uid_table", "platform_bindings"),
+                self.config.get("qq_code_table", "platform_bindings"),
+                self.config.get("discord_uid_table", "platform_bindings"),
+                self.config.get("discord_code_table", "platform_bindings"),
+                self.config.get("is_used_table", "platform_bindings"),
+            }
+            plat_col = self.config.get("platform_column", "platform")
+            uid_col = self.config.get("qq_uid_column", "platform_user_id")
+            code_col = self.config.get("qq_code_column", "register_code_hash")
+            used_col = self.config.get("is_used_column", "is_used")
+            for table in unique_tables:
+                await db.ensure_tables(self.db_engine, self._db_type, table, plat_col, uid_col, code_col, used_col)
+            logger.info(f"VeriBot {self._db_type} 数据库初始化成功")
         except Exception as e:
-            logger.error(f"VeriBot PostgreSQL 连接失败: {e}")
+            logger.error(f"VeriBot 数据库连接失败: {e}")
 
     async def _password_refresher(self):
         await self._refresh_passwords()
@@ -65,12 +82,20 @@ class VeriBot(Star):
             yield event.plain_result("请在群聊中使用此指令")
             return
 
-        if self.db_pool is None:
+        if self.db_engine is None:
             yield event.plain_result("数据库未连接，请联系管理员")
             return
 
         try:
-            binding = await db.get_binding(self.db_pool, "qq", str(user_id))
+            binding = await db.get_binding(
+                self.db_engine, self._db_type,
+                self.config.get("qq_uid_table", "platform_bindings"),
+                self.config.get("qq_uid_column", "platform_user_id"),
+                self.config.get("qq_code_column", "register_code_hash"),
+                self.config.get("is_used_column", "is_used"),
+                self.config.get("platform_column", "platform"),
+                "qq", str(user_id),
+            )
 
             if binding is None:
                 aux_pwd = self._get_password()
@@ -82,15 +107,23 @@ class VeriBot(Star):
                 raw_str = f"{user_id}{aux_pwd}"
                 hash_code = hashlib.sha256(raw_str.encode("utf-8")).hexdigest()
 
-                await db.save_auth_code(self.db_pool, "qq", str(user_id), hash_code)
+                await db.save_auth_code(
+                    self.db_engine, self._db_type,
+                    self.config.get("qq_code_table", "platform_bindings"),
+                    self.config.get("qq_uid_column", "platform_user_id"),
+                    self.config.get("qq_code_column", "register_code_hash"),
+                    self.config.get("is_used_column", "is_used"),
+                    self.config.get("platform_column", "platform"),
+                    "qq", str(user_id), hash_code,
+                )
                 logger.info(f"注册邀请码已生成并存储 QQ={user_id}")
 
                 code = hash_code[:12]
                 await self._send_group_temp_msg(event, user_id, group_id, f"您的注册邀请码为：{code}")
                 yield event.plain_result("注册邀请码已私聊发送，请查收")
 
-            elif not binding["is_used"]:
-                code = binding["register_code_hash"][:12]
+            elif not binding[self.config.get("is_used_column", "is_used")]:
+                code = binding[self.config.get("qq_code_column", "register_code_hash")][:12]
                 await self._send_group_temp_msg(event, user_id, group_id, f"您的注册邀请码为：{code}")
                 yield event.plain_result("注册邀请码已重新私聊发送，请查收")
 
@@ -116,15 +149,19 @@ class VeriBot(Star):
 
     @filter.command("sqltest")
     async def sqltest(self, event: AstrMessageEvent):
-        if self.db_pool is None:
+        logger.info(f"[VeriBot] sqltest 触发, platform={event.get_platform_name()}")
+        if self.db_engine is None:
+            logger.warning("[VeriBot] sqltest: db_engine is None")
             yield event.plain_result("数据库未连接")
             return
         try:
-            async with self.db_pool.acquire() as conn:
-                await conn.fetchrow("SELECT 1")
-                yield event.plain_result("数据库连接正常")
+            async with self.db_engine.connect() as conn:
+                await conn.execute(text("SELECT 1"))
+                logger.info("[VeriBot] sqltest: SELECT 1 成功")
+            yield event.plain_result("数据库连接正常")
+            logger.info("[VeriBot] sqltest: 结果已 yield")
         except Exception as e:
-            logger.error(f"数据库测试失败: {e}")
+            logger.error(f"[VeriBot] sqltest 失败: {e}\n{traceback.format_exc()}")
             yield event.plain_result(f"数据库连接失败: {e}")
 
     @filter.on_platform_loaded()
@@ -171,12 +208,20 @@ class VeriBot(Star):
 
                 await ctx.defer(ephemeral=True)
 
-                if self.db_pool is None:
+                if self.db_engine is None:
                     logger.error("[VeriBot] DB 未连接，sign-in 失败")
                     await ctx.followup.send("Database not connected. Please contact the administrator.", ephemeral=True)
                     return
 
-                binding = await db.get_binding(self.db_pool, "discord", user_id)
+                binding = await db.get_binding(
+                    self.db_engine, self._db_type,
+                    self.config.get("discord_uid_table", "platform_bindings"),
+                    self.config.get("discord_uid_column", "platform_user_id"),
+                    self.config.get("discord_code_column", "register_code_hash"),
+                    self.config.get("is_used_column", "is_used"),
+                    self.config.get("platform_column", "platform"),
+                    "discord", user_id,
+                )
 
                 if binding is None:
                     aux_pwd = self._get_password()
@@ -188,14 +233,22 @@ class VeriBot(Star):
                     raw_str = f"{user_id}{aux_pwd}"
                     hash_code = hashlib.sha256(raw_str.encode("utf-8")).hexdigest()
 
-                    await db.save_auth_code(self.db_pool, "discord", user_id, hash_code)
+                    await db.save_auth_code(
+                        self.db_engine, self._db_type,
+                        self.config.get("discord_code_table", "platform_bindings"),
+                        self.config.get("discord_uid_column", "platform_user_id"),
+                        self.config.get("discord_code_column", "register_code_hash"),
+                        self.config.get("is_used_column", "is_used"),
+                        self.config.get("platform_column", "platform"),
+                        "discord", user_id, hash_code,
+                    )
                     code = hash_code[:12]
                     logger.info(f"[VeriBot] 初次 sign-in, uid={user_id}, code={code}")
 
                     await ctx.followup.send(f"Your registration invite code: {code}", ephemeral=True)
 
-                elif not binding["is_used"]:
-                    code = binding["register_code_hash"][:12]
+                elif not binding[self.config.get("is_used_column", "is_used")]:
+                    code = binding[self.config.get("discord_code_column", "register_code_hash")][:12]
                     logger.info(f"[VeriBot] 非初次 sign-in(未注册), uid={user_id}, code={code}")
                     await ctx.followup.send(f"Your registration invite code: {code}", ephemeral=True)
 
@@ -227,6 +280,6 @@ class VeriBot(Star):
             logger.error(f"[VeriBot] 注册 sign-in 指令失败: {e}\n{traceback.format_exc()}")
 
     async def terminate(self):
-        if self.db_pool:
-            await self.db_pool.close()
-            logger.info("VeriBot PostgreSQL 连接池已关闭")
+        if self.db_engine:
+            await db.close_engine(self.db_engine)
+            logger.info("VeriBot 数据库连接已关闭")

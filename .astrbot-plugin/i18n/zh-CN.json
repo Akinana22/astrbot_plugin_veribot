@@ -5,6 +5,9 @@
     "short_desc": "注册邀请码"
   },
   "config": {
+    "db_type": {
+      "description": "数据库类型"
+    },
     "db_host": {
       "description": "数据库主机地址"
     },
@@ -19,6 +22,42 @@
     },
     "db_password": {
       "description": "数据库密码"
+    },
+    "platform_table": {
+      "description": "平台字段所在表"
+    },
+    "platform_column": {
+      "description": "平台字段列名"
+    },
+    "qq_uid_table": {
+      "description": "QQ UID 所在表"
+    },
+    "qq_uid_column": {
+      "description": "QQ UID 列名"
+    },
+    "qq_code_table": {
+      "description": "QQ 注册邀请码所在表"
+    },
+    "qq_code_column": {
+      "description": "QQ 注册邀请码列名"
+    },
+    "discord_uid_table": {
+      "description": "Discord UID 所在表"
+    },
+    "discord_uid_column": {
+      "description": "Discord UID 列名"
+    },
+    "discord_code_table": {
+      "description": "Discord 注册邀请码所在表"
+    },
+    "discord_code_column": {
+      "description": "Discord 注册邀请码列名"
+    },
+    "is_used_table": {
+      "description": "状态字段所在表"
+    },
+    "is_used_column": {
+      "description": "状态字段列名"
     },
     "auxiliary_password": {
       "description": "辅助密码（手动模式）",

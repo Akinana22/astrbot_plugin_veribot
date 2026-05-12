@@ -1,5 +1,5 @@
 name: astrbot_plugin_veribot
-version: 1.0.0
+version: 2.0.0
 display_name: 注册邀请码生成
 desc: 跨平台注册邀请码分发 bot，支持 QQ/Discord
 author: fyx
