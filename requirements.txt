@@ -1,4 +1,4 @@
 sqlalchemy>=2.0
 asyncpg>=0.29.0
-asyncmy>=0.2.14
+asyncmy>=0.2.11
 aiosqlite>=0.20.0

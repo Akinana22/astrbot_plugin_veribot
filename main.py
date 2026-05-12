@@ -3,6 +3,7 @@ import asyncio
 import secrets
 import random
 import traceback
+import aiohttp
 from sqlalchemy import text
 
 from astrbot.api.event import filter, AstrMessageEvent
@@ -273,11 +274,42 @@ class VeriBot(Star):
             client.add_application_command(cmd)
             logger.info(f"[VeriBot] 适配器已就绪(guild_id={guild_id}), 追加 sign-in 指令...")
 
-            await client.sync_commands()
-            self._discord_signin_setup = True
+            await self._register_cmd_safe(client, "sign-in", "Get registration invite code",
+                                           guild_id)
             logger.info("[VeriBot] sign-in 追加完成")
+            self._discord_signin_setup = True
         except Exception as e:
             logger.error(f"[VeriBot] 注册 sign-in 指令失败: {e}\n{traceback.format_exc()}")
+
+    async def _register_cmd_safe(self, client, name, description, guild_id):
+        token = client.http.token
+        app_id = client.application_id
+        headers = {"Authorization": f"Bot {token}"}
+        body = {"name": name, "type": 1, "description": description}
+        if guild_id:
+            url = f"https://discord.com/api/v10/applications/{app_id}/guilds/{guild_id}/commands"
+        else:
+            url = f"https://discord.com/api/v10/applications/{app_id}/commands"
+
+        for attempt in range(4):
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, json=body, headers=headers) as resp:
+                        if resp.status in (200, 201):
+                            logger.info(f"[VeriBot] {name} 指令 POST 成功 (status={resp.status})")
+                            return
+                        text = await resp.text()
+                        logger.warning(f"[VeriBot] {name} POST 返回 {resp.status}: {text[:200]}")
+                if attempt < 3:
+                    wait = (attempt + 1) * 3
+                    logger.info(f"[VeriBot] {name} 第{attempt + 1}次重试, {wait}s 后...")
+                    await asyncio.sleep(wait)
+            except Exception as e:
+                logger.error(f"[VeriBot] {name} POST 异常(attempt={attempt}): {e}")
+                if attempt < 3:
+                    await asyncio.sleep(3)
+                else:
+                    raise
 
     async def terminate(self):
         if self.db_engine:
