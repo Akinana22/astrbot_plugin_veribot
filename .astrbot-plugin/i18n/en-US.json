@@ -1,0 +1,39 @@
+{
+  "metadata": {
+    "display_name": "Registration Invite Code Generator",
+    "desc": "Cross-platform registration invite code bot for QQ & Discord",
+    "short_desc": "Invite Code"
+  },
+  "config": {
+    "db_host": {
+      "description": "Database Host"
+    },
+    "db_port": {
+      "description": "Database Port"
+    },
+    "db_name": {
+      "description": "Database Name"
+    },
+    "db_user": {
+      "description": "Database Username"
+    },
+    "db_password": {
+      "description": "Database Password"
+    },
+    "auxiliary_password": {
+      "description": "Auxiliary Password (Manual Mode)",
+      "hint": "When auto-refresh is disabled, enter one password per line. A random one is selected to generate the invite code."
+    },
+    "auto_refresh": {
+      "description": "Enable Automatic Password Refresh"
+    },
+    "refresh_interval": {
+      "description": "Password Refresh Interval (minutes)",
+      "hint": "Range: 5-30 minutes"
+    },
+    "password_count": {
+      "description": "Passwords Per Refresh Round",
+      "hint": "Range: 1-10"
+    }
+  }
+}

@@ -2,6 +2,7 @@ import hashlib
 import asyncio
 import secrets
 import random
+import traceback
 
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star
@@ -10,12 +11,13 @@ from astrbot.api import logger, AstrBotConfig
 from . import db
 
 
-class QQAuthCode(Star):
+class VeriBot(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
         self.db_pool = None
         self._passwords = []
+        self._discord_signin_setup = False
         asyncio.create_task(self._init_db())
         if config.get("auto_refresh", False):
             asyncio.create_task(self._password_refresher())
@@ -29,9 +31,9 @@ class QQAuthCode(Star):
                 user=self.config.get("db_user", "postgres"),
                 password=self.config.get("db_password", ""),
             )
-            logger.info("QQAuthCode PostgreSQL 连接池初始化成功")
+            logger.info("VeriBot PostgreSQL 连接池初始化成功")
         except Exception as e:
-            logger.error(f"QQAuthCode PostgreSQL 连接失败: {e}")
+            logger.error(f"VeriBot PostgreSQL 连接失败: {e}")
 
     async def _password_refresher(self):
         await self._refresh_passwords()
@@ -54,6 +56,7 @@ class QQAuthCode(Star):
         return random.choice(lines)
 
     @filter.command("注册")
+    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
     async def register(self, event: AstrMessageEvent):
         user_id = event.get_sender_id()
         group_id = event.message_obj.group_id
@@ -72,7 +75,7 @@ class QQAuthCode(Star):
             if binding is None:
                 aux_pwd = self._get_password()
                 if not aux_pwd:
-                    logger.error("辅助密码未设置，无法生成验证码")
+                    logger.error("辅助密码未设置，无法生成注册邀请码")
                     yield event.plain_result("辅助密码未设置，请联系管理员")
                     return
 
@@ -80,16 +83,16 @@ class QQAuthCode(Star):
                 hash_code = hashlib.sha256(raw_str.encode("utf-8")).hexdigest()
 
                 await db.save_auth_code(self.db_pool, "qq", str(user_id), hash_code)
-                logger.info(f"验证码已生成并存储 QQ={user_id}")
+                logger.info(f"注册邀请码已生成并存储 QQ={user_id}")
 
                 code = hash_code[:12]
-                await self._send_group_temp_msg(event, user_id, group_id, f"您的注册验证码为：{code}")
-                yield event.plain_result("验证码已私聊发送，请查收")
+                await self._send_group_temp_msg(event, user_id, group_id, f"您的注册邀请码为：{code}")
+                yield event.plain_result("注册邀请码已私聊发送，请查收")
 
             elif not binding["is_used"]:
                 code = binding["register_code_hash"][:12]
-                await self._send_group_temp_msg(event, user_id, group_id, f"您的注册验证码为：{code}")
-                yield event.plain_result("验证码已重新私聊发送，请查收")
+                await self._send_group_temp_msg(event, user_id, group_id, f"您的注册邀请码为：{code}")
+                yield event.plain_result("注册邀请码已重新私聊发送，请查收")
 
             else:
                 yield event.plain_result("该 QQ 号已成功注册")
@@ -124,7 +127,106 @@ class QQAuthCode(Star):
             logger.error(f"数据库测试失败: {e}")
             yield event.plain_result(f"数据库连接失败: {e}")
 
+    @filter.on_platform_loaded()
+    async def _on_platform_ready(self):
+        for plat in self.context.platform_manager.platform_insts:
+            if plat.meta().name == "discord" and not self._discord_signin_setup:
+                self._discord_signin_setup = True
+                logger.info(f"[VeriBot] 检测到 Discord 平台, id={plat.meta().id}")
+                asyncio.create_task(self._setup_discord_signin(plat))
+            elif plat.meta().name == "discord" and self._discord_signin_setup:
+                logger.info(f"[VeriBot] Discord 平台 {plat.meta().id} sign-in 已注册，跳过")
+
+    async def _setup_discord_signin(self, platform):
+        import discord as _discord
+
+        logger.info("[VeriBot] 开始设置 Discord sign-in 指令")
+
+        for i in range(60):
+            if hasattr(platform, 'client') and platform.client is not None:
+                logger.info("[VeriBot] Discord client 已出现，等待 on_ready 完成...")
+                break
+            if i == 0:
+                logger.info("[VeriBot] 等待 Discord client 初始化...")
+            await asyncio.sleep(1)
+        else:
+            logger.error("[VeriBot] Discord client 超时未就绪，放弃注册 sign-in 指令")
+            return
+
+        client = platform.client
+
+        try:
+            await client.wait_until_ready()
+            logger.info("[VeriBot] wait_until_ready 完成，等待适配器 on_ready 回调执行...")
+            await asyncio.sleep(5)
+            logger.info("[VeriBot] 开始注册 sign-in 指令")
+        except Exception as e:
+            logger.error(f"[VeriBot] wait_until_ready 异常: {e}")
+            return
+
+        async def signin_callback(ctx: _discord.ApplicationContext):
+            try:
+                user_id = str(ctx.author.id)
+                logger.info(f"[VeriBot] sign-in 触发, uid={user_id}, name={ctx.author.display_name}")
+
+                await ctx.defer(ephemeral=True)
+
+                if self.db_pool is None:
+                    logger.error("[VeriBot] DB 未连接，sign-in 失败")
+                    await ctx.followup.send("Database not connected. Please contact the administrator.", ephemeral=True)
+                    return
+
+                binding = await db.get_binding(self.db_pool, "discord", user_id)
+
+                if binding is None:
+                    aux_pwd = self._get_password()
+                    if not aux_pwd:
+                        logger.error("[VeriBot] 辅助密码未设置，sign-in 失败")
+                        await ctx.followup.send("Auxiliary password not configured. Please contact the administrator.", ephemeral=True)
+                        return
+
+                    raw_str = f"{user_id}{aux_pwd}"
+                    hash_code = hashlib.sha256(raw_str.encode("utf-8")).hexdigest()
+
+                    await db.save_auth_code(self.db_pool, "discord", user_id, hash_code)
+                    code = hash_code[:12]
+                    logger.info(f"[VeriBot] 初次 sign-in, uid={user_id}, code={code}")
+
+                    await ctx.followup.send(f"Your registration invite code: {code}", ephemeral=True)
+
+                elif not binding["is_used"]:
+                    code = binding["register_code_hash"][:12]
+                    logger.info(f"[VeriBot] 非初次 sign-in(未注册), uid={user_id}, code={code}")
+                    await ctx.followup.send(f"Your registration invite code: {code}", ephemeral=True)
+
+                else:
+                    logger.info(f"[VeriBot] 非初次 sign-in(已注册), uid={user_id}, 忽略")
+
+            except Exception as e:
+                logger.error(f"[VeriBot] sign-in callback 异常: {e}\n{traceback.format_exc()}")
+                try:
+                    await ctx.followup.send("An error occurred. Please try again later.", ephemeral=True)
+                except Exception:
+                    pass
+
+        try:
+            guild_id = getattr(platform, 'guild_id', None)
+            cmd = _discord.SlashCommand(
+                name="sign-in",
+                description="Get registration invite code",
+                func=signin_callback,
+                guild_ids=[guild_id] if guild_id else None,
+            )
+            client.add_application_command(cmd)
+            logger.info(f"[VeriBot] 适配器已就绪(guild_id={guild_id}), 追加 sign-in 指令...")
+
+            await client.sync_commands()
+            self._discord_signin_setup = True
+            logger.info("[VeriBot] sign-in 追加完成")
+        except Exception as e:
+            logger.error(f"[VeriBot] 注册 sign-in 指令失败: {e}\n{traceback.format_exc()}")
+
     async def terminate(self):
         if self.db_pool:
             await self.db_pool.close()
-            logger.info("QQAuthCode PostgreSQL 连接池已关闭")
+            logger.info("VeriBot PostgreSQL 连接池已关闭")

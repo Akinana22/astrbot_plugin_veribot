@@ -1,0 +1,39 @@
+{
+  "metadata": {
+    "display_name": "注册邀请码生成",
+    "desc": "跨平台注册邀请码分发 bot，支持 QQ / Discord",
+    "short_desc": "注册邀请码"
+  },
+  "config": {
+    "db_host": {
+      "description": "数据库主机地址"
+    },
+    "db_port": {
+      "description": "数据库端口"
+    },
+    "db_name": {
+      "description": "数据库名称"
+    },
+    "db_user": {
+      "description": "数据库用户名"
+    },
+    "db_password": {
+      "description": "数据库密码"
+    },
+    "auxiliary_password": {
+      "description": "辅助密码（手动模式）",
+      "hint": "关闭自动刷新时使用，每行一个密码，随机选取其中一个搭配用户ID生成注册邀请码"
+    },
+    "auto_refresh": {
+      "description": "启用辅助密码自动刷新"
+    },
+    "refresh_interval": {
+      "description": "密码刷新间隔（分钟）",
+      "hint": "取值范围 5-30 分钟"
+    },
+    "password_count": {
+      "description": "每轮生成的密码数量",
+      "hint": "取值范围 1-10"
+    }
+  }
+}
