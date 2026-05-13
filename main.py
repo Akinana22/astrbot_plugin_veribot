@@ -152,9 +152,16 @@ class VeriBot(Star):
     async def sqltest(self, event: AstrMessageEvent):
         logger.info(f"[VeriBot] sqltest 触发, platform={event.get_platform_name()}")
         if self.db_engine is None:
-            logger.warning("[VeriBot] sqltest: db_engine is None")
-            yield event.plain_result("数据库未连接")
-            return
+            logger.warning("[VeriBot] sqltest: db_engine is None, 尝试初始化...")
+            try:
+                await self._init_db()
+                if self.db_engine is None:
+                    yield event.plain_result("数据库未连接，请稍后重试")
+                    return
+            except Exception as e:
+                logger.error(f"[VeriBot] sqltest: 初始化失败: {e}")
+                yield event.plain_result("数据库未连接，请联系管理员")
+                return
         try:
             async with self.db_engine.connect() as conn:
                 await conn.execute(text("SELECT 1"))
